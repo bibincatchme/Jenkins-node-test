@@ -1,0 +1,67 @@
+pipeline {
+  environment {
+    registry = "bibincatchme/my-nodeapp"
+    registryCredential = 'dockerhubpwd'
+	login = "docker.withRegistry( 'https://' + registry, registryCredential )"
+	dockerpull = 'dockerImage.push()'
+    dockerImage = ''
+  }
+  agent any
+  tools {nodejs "node" }
+  stages {
+    stage('Cloning Git') {
+      steps {
+        git 'https://github.com/bibincatchme/node-project.git'
+      }
+    }
+    stage('Build') {
+       steps {
+         sh 'npm install'
+       }
+    }
+    stage('Test') {
+      steps {
+        sh 'npm test'
+      }
+    }
+    stage('Building image') {
+      steps{
+        script {
+          dockerImage = docker.build registry + ":$BUILD_NUMBER"
+        }
+      }
+    }
+    stage('Deploy Image') {
+      steps{
+         script {
+            docker.withRegistry( '', registryCredential ) {
+            dockerImage.push()
+          }
+        }
+      }
+    }
+    stage('Remove Unused docker image') {
+      steps{
+        sh "docker rmi $registry:$BUILD_NUMBER"
+      }
+    }
+  
+  	stage('Run Container on Dev Server'){
+	    steps{ 
+		   script { 
+		  
+		   sshagent(['dev-server']) {
+           sh "ssh -o StrictHostKeyChecking=no -l ubuntu 3.82.54.22 hostname -i ${login} ${dockerpul}"
+		}  
+	 }
+    }
+	}
+  
+  
+  
+  }
+}
+
+
+
+
